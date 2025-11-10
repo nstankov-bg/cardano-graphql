@@ -1560,7 +1560,7 @@ type StakeRegistration_aggregate_fields {
 }
 
 type Token {
-    asset: Asset!
+    asset: Asset
     quantity: String!
     transactionOutput: TransactionOutput!
 }
@@ -1896,7 +1896,7 @@ type TransactionInput_sum_fields {
 
 type TransactionMetadata {
     key: String!
-    value: JSON!
+    value: JSON
 }
 
 input TransactionMetadata_bool_exp {

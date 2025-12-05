@@ -138,6 +138,27 @@ For Preprod `.env.docker-compose-preprod` (other networks):
 METADATA_SERVER_URI="https://metadata.world.dev.cardano.org"
 ```
 
+### Enable Performance Indexes (Optional)
+The index service creates optional database indexes to significantly improve query performance for high-volume deployments. Index creation runs concurrently with db-sync and does not block synchronization.
+
+To enable, add `indexes` to `COMPOSE_PROFILES` in your `.env` file:
+```bash
+# .env.docker-compose or .env.docker-compose-preprod
+COMPOSE_PROFILES=token-registry,indexes
+```
+
+Then start/restart the stack:
+```bash
+docker compose --env-file .env.docker-compose up -d
+```
+
+Monitor index creation progress:
+```bash
+docker compose logs -f index-service
+```
+
+:information_source: _Index creation can take several hours but significantly speeds up queries for transactions by address and asset lookups. See [Index Service Documentation](./packages/index-service/README.md) for details on created indexes, customization, and best practices._
+
 ### Check Cardano DB sync progress
 Use the GraphQL Playground in the browser at http://localhost:3100/graphql:
 > **_Note_** This Query is not available in early Era's of Cardano. Check Points of Interest here: [Link](https://ogmios.dev/mini-protocols/local-chain-sync/#points-of-interest) 

@@ -203,6 +203,8 @@ services:
     build:
       context: ./packages/index-service
       dockerfile: Dockerfile
+      args:
+        POSTGRES_VERSION: ${POSTGRES_VERSION}
     image: cardanofoundation/cardano-graphql-index-service:${CARDANO_GRAPHQL_VERSION}
     profiles: ["indexes"]
     environment:

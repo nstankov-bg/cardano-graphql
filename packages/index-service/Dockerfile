@@ -1,4 +1,5 @@
-FROM postgres:15-alpine
+ARG POSTGRES_VERSION=17.2-alpine
+FROM postgres:${POSTGRES_VERSION}
 
 # Install postgresql-client (psql)
 RUN apk add --no-cache postgresql-client bash

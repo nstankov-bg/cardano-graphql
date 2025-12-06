@@ -26,7 +26,6 @@ services:
         max-file: "10"
 
   mithril:
-    image: cardanofoundation/cardano-graph-ql-mithril:${MITHRIL_VERSION}
     build:
       context: ./
       dockerfile: ./dockerfiles/mithril/Dockerfile
@@ -131,7 +130,7 @@ services:
     build:
       context: .
       target: background
-    image: cardanofoundation/cardano-graphql-background:${CARDANO_GRAPHQL_VERSION}-${NETWORK}
+    image: cardanofoundation/cardano-graphql-background:${CARDANO_GRAPHQL_VERSION}
     depends_on:
       - "hasura"
       - "postgres"
@@ -160,7 +159,7 @@ services:
         - NETWORK=${NETWORK}
       context: .
       target: server
-    image: cardanofoundation/cardano-graphql-server:${CARDANO_GRAPHQL_VERSION}-${NETWORK}
+    image: cardanofoundation/cardano-graphql-server:${CARDANO_GRAPHQL_VERSION}
     environment:
       - ALLOW_INTROSPECTION=true
       - CACHE_ENABLED=true

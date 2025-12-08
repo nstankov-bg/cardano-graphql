@@ -49,7 +49,9 @@ services:
       - ${CARDANO_NODE_DIR}:/ipc
       - ${CARDANO_NODE_DB}:/node/db
       - ./config/network/${NETWORK}:/config
-    entrypoint: cardano-node run --database-path /node/db --socket-path /ipc/node.socket --topology /config/cardano-node/topology.json --config /config/cardano-node/config.json
+    entrypoint: cardano-node run --database-path /node/db --socket-path /ipc/node.socket --port "$CARDANO_NODE_PORT" --topology /config/cardano-node/topology.json --config /config/cardano-node/config.json
+    ports:
+      - ${CARDANO_NODE_PORT}:${CARDANO_NODE_PORT}
     depends_on:
       mithril:
         condition: service_completed_successfully
@@ -190,6 +192,8 @@ services:
       - POSTGRES_HOST=postgres
       - DB_SCHEMA=tokenregistry
       - NETWORK=${NETWORK}
+      - CARDANO_NODE_HOST=${CARDANO_NODE_HOST}
+      - CARDANO_NODE_PORT=${CARDANO_NODE_PORT}
     secrets:
       - postgres_db
       - postgres_password
@@ -204,7 +208,6 @@ services:
       dockerfile: Dockerfile
       args:
         POSTGRES_VERSION: ${POSTGRES_VERSION}
-    image: cardanofoundation/cardano-graphql-index-service:${CARDANO_GRAPHQL_VERSION}
     profiles: ["indexes"]
     environment:
       - POSTGRES_HOST=postgres

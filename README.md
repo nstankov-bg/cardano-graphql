@@ -40,7 +40,7 @@ Check the [releases] for the latest version.
 ``` console
 git clone \
   --single-branch \
-  --branch 8.4.1 \
+  --branch 8.4.3 \
   --recurse-submodules \
   https://github.com/cardano-foundation/cardano-graphql.git \
   && cd cardano-graphql
@@ -137,6 +137,27 @@ For Preprod `.env.docker-compose-preprod` (other networks):
 ```
 METADATA_SERVER_URI="https://metadata.world.dev.cardano.org"
 ```
+
+### Enable Performance Indexes (Optional)
+The index service creates optional database indexes to significantly improve query performance for high-volume deployments. Index creation runs concurrently with db-sync and does not block synchronization.
+
+To enable, add `indexes` to `COMPOSE_PROFILES` in your `.env` file:
+```bash
+# .env.docker-compose or .env.docker-compose-preprod
+COMPOSE_PROFILES=token-registry,indexes
+```
+
+Then start/restart the stack:
+```bash
+docker compose --env-file .env.docker-compose up -d
+```
+
+Monitor index creation progress:
+```bash
+docker compose logs -f index-service
+```
+
+:information_source: _Index creation can take several hours but significantly speeds up queries for transactions by address and asset lookups. See [Index Service Documentation](./packages/index-service/README.md) for details on created indexes, customization, and best practices._
 
 ### Check Cardano DB sync progress
 Use the GraphQL Playground in the browser at http://localhost:3100/graphql:

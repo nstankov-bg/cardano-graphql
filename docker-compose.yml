@@ -26,7 +26,6 @@ services:
         max-file: "10"
 
   mithril:
-    image: cardanofoundation/cardano-graph-ql-mithril:${MITHRIL_VERSION}
     build:
       context: ./
       dockerfile: ./dockerfiles/mithril/Dockerfile
@@ -40,7 +39,7 @@ services:
       - GENESIS_VERIFICATION_KEY=${GENESIS_VERIFICATION_KEY}
       - ANCILLARY_VERIFICATION_KEY=${ANCILLARY_VERIFICATION_KEY}
     volumes:
-      - ${CARDANO_NODE_DIR}:/node
+      - ${CARDANO_NODE_DB}:/node/db
 
   cardano-node:
     image: ghcr.io/intersectmbo/cardano-node:${CARDANO_NODE_VERSION}
@@ -50,7 +49,9 @@ services:
       - ${CARDANO_NODE_DIR}:/ipc
       - ${CARDANO_NODE_DB}:/node/db
       - ./config/network/${NETWORK}:/config
-    entrypoint: cardano-node run --database-path /node/db --socket-path /ipc/node.socket --topology /config/cardano-node/topology.json --config /config/cardano-node/config.json
+    entrypoint: cardano-node run --database-path /node/db --socket-path /ipc/node.socket --port "$CARDANO_NODE_PORT" --topology /config/cardano-node/topology.json --config /config/cardano-node/config.json
+    ports:
+      - ${CARDANO_NODE_PORT}:${CARDANO_NODE_PORT}
     depends_on:
       mithril:
         condition: service_completed_successfully
@@ -131,7 +132,7 @@ services:
     build:
       context: .
       target: background
-    image: cardanofoundation/cardano-graphql-background:${CARDANO_GRAPHQL_VERSION}-${NETWORK}
+    image: cardanofoundation/cardano-graphql-background:${CARDANO_GRAPHQL_VERSION}
     depends_on:
       - "hasura"
       - "postgres"
@@ -160,7 +161,7 @@ services:
         - NETWORK=${NETWORK}
       context: .
       target: server
-    image: cardanofoundation/cardano-graphql-server:${CARDANO_GRAPHQL_VERSION}-${NETWORK}
+    image: cardanofoundation/cardano-graphql-server:${CARDANO_GRAPHQL_VERSION}
     environment:
       - ALLOW_INTROSPECTION=true
       - CACHE_ENABLED=true
@@ -180,7 +181,7 @@ services:
   token-metadata-registry:
     image: cardanofoundation/cf-token-metadata-registry-api:${TOKEN_REGISTRY_VERSION}
     profiles: ["token-registry"]
-    volumes: 
+    volumes:
       - ./scripts/:/app/scripts/:ro
     entrypoint: ["sh", "/app/scripts/token-registry-init.sh"]
     ports:
@@ -191,6 +192,8 @@ services:
       - POSTGRES_HOST=postgres
       - DB_SCHEMA=tokenregistry
       - NETWORK=${NETWORK}
+      - CARDANO_NODE_HOST=${CARDANO_NODE_HOST}
+      - CARDANO_NODE_PORT=${CARDANO_NODE_PORT}
     secrets:
       - postgres_db
       - postgres_password
@@ -198,6 +201,36 @@ services:
     restart: on-failure
     depends_on:
       - postgres
+
+  index-service:
+    build:
+      context: ./packages/index-service
+      dockerfile: Dockerfile
+      args:
+        POSTGRES_VERSION: ${POSTGRES_VERSION}
+    profiles: ["indexes"]
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=${POSTGRES_PORT}
+      - POSTGRES_DB_FILE=/run/secrets/postgres_db
+      - POSTGRES_USER_FILE=/run/secrets/postgres_user
+      - POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password
+      - MIN_BLOCK_COUNT=${INDEX_MIN_BLOCK_COUNT:-1000}
+    secrets:
+      - postgres_db
+      - postgres_password
+      - postgres_user
+    depends_on:
+      cardano-db-sync:
+        condition: service_started
+      postgres:
+        condition: service_started
+    restart: "no"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "400k"
+        max-file: "10"
 
 secrets:
   postgres_db:

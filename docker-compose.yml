@@ -172,6 +172,7 @@ services:
       - LOGGER_MIN_SEVERITY=${LOGGER_MIN_SEVERITY}
       - METADATA_SERVER_URI=${METADATA_SERVER_URI}
       - POSTGRES_PORT=${POSTGRES_PORT}
+      - ASSET_BACKFILL_BATCH_SIZE=${ASSET_BACKFILL_BATCH_SIZE}
     restart: on-failure
     secrets:
       - postgres_db

@@ -29,6 +29,7 @@ export interface BackgroundConfig {
   metadataUpdateInterval?: {
     assets: number;
   };
+  assetBackfillBatchSize?: number;
 }
 
 async function getConfig (): Promise<BackgroundConfig> {
@@ -94,6 +95,7 @@ function filterAndTypecastEnvs (env: any) {
   const {
     COMPOSE_PROFILES,
     ASSET_METADATA_UPDATE_INTERVAL,
+    ASSET_BACKFILL_BATCH_SIZE,
     HASURA_CLI_PATH,
     HASURA_CLI_EXT_PATH,
     HASURA_URI,
@@ -120,6 +122,9 @@ function filterAndTypecastEnvs (env: any) {
         ? Number(ASSET_METADATA_UPDATE_INTERVAL)
         : undefined
     },
+    assetBackfillBatchSize: ASSET_BACKFILL_BATCH_SIZE
+      ? Number(ASSET_BACKFILL_BATCH_SIZE)
+      : undefined,
     postgres: {
       db: POSTGRES_DB,
       dbFile: POSTGRES_DB_FILE,
@@ -201,7 +206,7 @@ function startAssetPolling (
         try {
           await hasuraBackgroundClient.initialize()
           const lastSeenId = await hasuraBackgroundClient.getMaxMultiAssetId(config.db)
-          const backfilledAssetIds = await hasuraBackgroundClient.backfillMissingAssets(config.db)
+          const backfilledAssetIds = await hasuraBackgroundClient.backfillMissingAssets(config.db, config.assetBackfillBatchSize)
           await worker.initQueue()
           startAssetPolling(hasuraBackgroundClient, worker, config.db, lastSeenId, logger)
           await metadataClient.initialize()

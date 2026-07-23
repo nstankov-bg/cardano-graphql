@@ -16,6 +16,9 @@ import {
 const epochInformationNotYetAvailable =
   'Epoch information not yet available. This is expected during the initial chain-sync.'
 
+const ASSET_BACKFILL_ADVISORY_LOCK_KEY = 4021991017
+const ASSET_BACKFILL_DEFAULT_BATCH_SIZE = 500000
+
 const withHexPrefix = (value: string) =>
   `\\x${value !== undefined ? value : ''}`
 
@@ -388,41 +391,74 @@ export class HasuraBackgroundClient {
     }
   }
 
-  public async backfillMissingAssets (dbConfig: DbConfig): Promise<string[]> {
+  public async backfillMissingAssets (dbConfig: DbConfig, batchSize: number = ASSET_BACKFILL_DEFAULT_BATCH_SIZE): Promise<string[]> {
     const client = new Client(dbConfig)
     await client.connect()
     try {
-      await client.query(`
-        UPDATE "Asset" a
-        SET fingerprint = ma.fingerprint
-        FROM multi_asset ma
-        WHERE a."assetId" = CAST(CONCAT(ma.policy, RIGHT(CONCAT(E'\\\\', ma.name), -3)) AS BYTEA)
-          AND a.fingerprint IS NULL
-      `)
-      const result = await client.query(`
-        INSERT INTO "Asset" ("assetId", "assetName", "policyId", "fingerprint", "firstAppearedInSlot")
-        SELECT
-          CAST(CONCAT(ma.policy, RIGHT(CONCAT(E'\\\\', ma.name), -3)) AS BYTEA),
-          ma.name,
-          ma.policy,
-          ma.fingerprint,
-          MIN(b.slot_no)
-        FROM multi_asset ma
-        JOIN ma_tx_mint mtm ON mtm.ident = ma.id
-        JOIN tx             ON tx.id     = mtm.tx_id
-        JOIN block b        ON b.id      = tx.block_id
-        LEFT JOIN "Asset" a
-          ON a."assetId" = CAST(CONCAT(ma.policy, RIGHT(CONCAT(E'\\\\', ma.name), -3)) AS BYTEA)
-        WHERE a."assetId" IS NULL
-        GROUP BY ma.id, ma.policy, ma.name, ma.fingerprint
-        ON CONFLICT ("assetId") DO NOTHING
-        RETURNING encode("assetId", 'hex') AS "assetId"
-      `)
-      this.logger.info(
-        { module: 'HasuraBackgroundClient', inserted: result.rowCount },
-        'Backfilled missing assets from multi_asset'
+      const lockResult = await client.query<{ locked: boolean }>(
+        'SELECT pg_try_advisory_lock($1) AS locked',
+        [ASSET_BACKFILL_ADVISORY_LOCK_KEY]
       )
-      return result.rows.map((row: { assetId: string }) => row.assetId)
+      if (!lockResult.rows[0].locked) {
+        this.logger.warn(
+          { module: 'HasuraBackgroundClient' },
+          'Asset backfill already in progress on another connection, skipping'
+        )
+        return []
+      }
+      try {
+        await client.query(`
+          UPDATE "Asset" a
+          SET fingerprint = ma.fingerprint
+          FROM multi_asset ma
+          WHERE a."assetId" = CAST(CONCAT(ma.policy, RIGHT(CONCAT(E'\\\\', ma.name), -3)) AS BYTEA)
+            AND a.fingerprint IS NULL
+        `)
+        const maxResult = await client.query<{ maxId: string }>(
+          'SELECT COALESCE(MAX(id), 0) AS "maxId" FROM multi_asset'
+        )
+        const maxId = Number(maxResult.rows[0].maxId)
+        const insertedAssetIds: string[] = []
+        for (let cur = 0; cur < maxId; cur += batchSize) {
+          const result = await client.query(`
+            INSERT INTO "Asset" ("assetId", "assetName", "policyId", "fingerprint", "firstAppearedInSlot")
+            SELECT
+              CAST(CONCAT(ma.policy, RIGHT(CONCAT(E'\\\\', ma.name), -3)) AS BYTEA),
+              ma.name,
+              ma.policy,
+              ma.fingerprint,
+              MIN(b.slot_no)
+            FROM multi_asset ma
+            JOIN ma_tx_mint mtm ON mtm.ident = ma.id
+            JOIN tx             ON tx.id     = mtm.tx_id
+            JOIN block b        ON b.id      = tx.block_id
+            LEFT JOIN "Asset" a
+              ON a."assetId" = CAST(CONCAT(ma.policy, RIGHT(CONCAT(E'\\\\', ma.name), -3)) AS BYTEA)
+            WHERE a."assetId" IS NULL
+              AND ma.id > $1
+              AND ma.id <= $2
+            GROUP BY ma.id, ma.policy, ma.name, ma.fingerprint
+            ON CONFLICT ("assetId") DO NOTHING
+            RETURNING encode("assetId", 'hex') AS "assetId"
+          `, [cur, cur + batchSize])
+          if (result.rowCount > 0) {
+            for (const row of result.rows as { assetId: string }[]) {
+              insertedAssetIds.push(row.assetId)
+            }
+            this.logger.info(
+              { module: 'HasuraBackgroundClient', upToId: cur + batchSize, inserted: result.rowCount, total: insertedAssetIds.length },
+              'Backfilled asset batch from multi_asset'
+            )
+          }
+        }
+        this.logger.info(
+          { module: 'HasuraBackgroundClient', inserted: insertedAssetIds.length },
+          'Backfilled missing assets from multi_asset'
+        )
+        return insertedAssetIds
+      } finally {
+        await client.query('SELECT pg_advisory_unlock($1)', [ASSET_BACKFILL_ADVISORY_LOCK_KEY])
+      }
     } finally {
       await client.end()
     }

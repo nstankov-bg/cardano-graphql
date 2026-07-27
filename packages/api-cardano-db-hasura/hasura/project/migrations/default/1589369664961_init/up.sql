@@ -7,7 +7,7 @@ CREATE OR REPLACE VIEW "AdaPots" AS
     epoch_no AS "epochNo",
     deposits_stake,
     deposits_drep,
-    deposits_proposal
+    deposits_proposal,
     fees,
     reserves,
     rewards,

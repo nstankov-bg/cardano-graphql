@@ -28,7 +28,7 @@ export async function getConfig (): Promise<Config> {
     listenAddress: env.listenAddress || '0.0.0.0',
     maxQueryComplexity: env.maxQueryComplexity,
     pollingInterval: {
-      adaSupply: env.pollingInterval.adaSupply || 1000 * 60
+      adaSupply: env.pollingInterval.adaSupply || 1000 * 60 * 60 * 6
     },
     queryDepthLimit: env.queryDepthLimit || 10
   }

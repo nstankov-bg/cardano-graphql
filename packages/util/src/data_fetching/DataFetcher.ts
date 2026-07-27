@@ -21,7 +21,7 @@ export class DataFetcher<DataValue> {
       try {
         this.value = await fetchFn()
       } catch (e) {
-        this.logger.debug('Tried fetching...')
+        this.logger.warn({ module: 'DataFetcher', instance: this.name, err: e }, 'Fetch failed')
       }
       this.isFetching = false
     }
@@ -38,6 +38,8 @@ export class DataFetcher<DataValue> {
 
   public shutdown () {
     this.logger.debug(`DataFetcher: ${this.name}: shutdown`)
-    return clearIntervalAsync(this.pollingQueryTimer)
+    if (this.pollingQueryTimer) {
+      return clearIntervalAsync(this.pollingQueryTimer)
+    }
   }
 }

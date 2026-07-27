@@ -199,6 +199,7 @@ services:
       - CARDANO_SUBMIT_API_HOST=cardano-submit-api
       - LOGGER_MIN_SEVERITY=${LOGGER_MIN_SEVERITY}
       - NETWORK=${NETWORK}
+      - POLLING_INTERVAL_ADA_SUPPLY=${POLLING_INTERVAL_ADA_SUPPLY}
       - POSTGRES_PORT=${POSTGRES_PORT}
     depends_on:
       cardano-submit-api:

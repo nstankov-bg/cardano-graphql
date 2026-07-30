@@ -17,9 +17,10 @@
 \echo '======================================================================'
 \echo ''
 
-\echo '[1/3] Creating index on tx_out.address (hash)...'
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_out_address ON tx_out USING hash (address);
-\echo '✓ Completed: idx_tx_out_address'
+\echo '[1/3] Creating index on tx_out.address (hash on text expression)...'
+DROP INDEX CONCURRENTLY IF EXISTS idx_tx_out_address;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_tx_out_address_texthash ON tx_out USING hash ((address::text));
+\echo '✓ Completed: idx_tx_out_address_texthash'
 \echo ''
 
 \echo '[2/3] Creating index on asset.fingerprint...'
@@ -48,7 +49,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_ma_tx_mint_ident ON ma_tx_mint(ident
 \echo '  docker compose exec postgres psql -U <user> -d <db> -c "\\di idx_*"'
 \echo ''
 \echo 'Indexes created:'
-\echo '  idx_tx_out_address      - speeds up payment address queries'
+\echo '  idx_tx_out_address_texthash - speeds up payment address / UTXO-by-address queries'
 \echo '  idx_asset_fingerprint   - speeds up asset fingerprint lookups'
 \echo '  idx_ma_tx_mint_ident    - speeds up new asset polling'
 \echo ''

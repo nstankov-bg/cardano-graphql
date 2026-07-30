@@ -2,6 +2,9 @@ import { FetchFunction } from './index'
 import { clearIntervalAsync, setIntervalAsync, SetIntervalAsyncTimer } from 'set-interval-async/dynamic'
 import { dummyLogger, Logger } from 'ts-log'
 
+const INITIAL_FETCH_RETRY_INTERVAL = 15000
+const INITIAL_FETCH_MAX_ATTEMPTS = 40
+
 export class DataFetcher<DataValue> {
   private pollingQueryTimer: SetIntervalAsyncTimer
   private fetch: () => Promise<void>
@@ -21,7 +24,7 @@ export class DataFetcher<DataValue> {
       try {
         this.value = await fetchFn()
       } catch (e) {
-        this.logger.debug('Tried fetching...')
+        this.logger.warn({ module: 'DataFetcher', instance: this.name, err: e }, 'Fetch failed')
       }
       this.isFetching = false
     }
@@ -29,6 +32,12 @@ export class DataFetcher<DataValue> {
 
   public async initialize () {
     await this.fetch()
+    let initialAttempts = 0
+    while (this.value === undefined && initialAttempts < INITIAL_FETCH_MAX_ATTEMPTS) {
+      initialAttempts++
+      await new Promise(resolve => setTimeout(resolve, INITIAL_FETCH_RETRY_INTERVAL))
+      await this.fetch()
+    }
     this.logger.debug({ module: 'DataFetcher', instance: this.name, value: this.value }, 'Initial value fetched')
     this.pollingQueryTimer = setIntervalAsync(async () => {
       await this.fetch()
@@ -38,6 +47,8 @@ export class DataFetcher<DataValue> {
 
   public shutdown () {
     this.logger.debug(`DataFetcher: ${this.name}: shutdown`)
-    return clearIntervalAsync(this.pollingQueryTimer)
+    if (this.pollingQueryTimer) {
+      return clearIntervalAsync(this.pollingQueryTimer)
+    }
   }
 }

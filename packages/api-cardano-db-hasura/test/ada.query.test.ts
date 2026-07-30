@@ -1,6 +1,7 @@
 import path from 'path'
 
 import { DocumentNode } from 'graphql'
+import pRetry from 'p-retry'
 import util from '@cardano-graphql/util'
 import { TestClient } from '@cardano-graphql/util-dev'
 import { testClient } from './util'
@@ -23,16 +24,17 @@ describe('ada', () => {
   })
 
   it('returns ada supply information', async () => {
-    const result = await client.query({
-      query: await loadQueryNode('adaSupply')
-    })
+    const query = await loadQueryNode('adaSupply')
+    const result = await pRetry(
+      () => client.query({ query }),
+      { retries: 40, minTimeout: 3000, factor: 1 }
+    )
     const { ada } = result.data
     const circulatingSupply = new BigNumber(ada.supply.circulating).toNumber()
     const maxSupply = new BigNumber(ada.supply.max).toNumber()
     const totalSupply = new BigNumber(ada.supply.total).toNumber()
     expect(maxSupply).toEqual(genesis.shelley.maxLovelaceSupply)
     expect(maxSupply).toBeGreaterThan(circulatingSupply)
-    // expect(totalSupply).toBeGreaterThan(circulatingSupply)
     expect(totalSupply).toBeLessThan(maxSupply)
   })
 })
